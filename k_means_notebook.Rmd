@@ -1,0 +1,92 @@
+---
+title: "Agrupando usuários do 8tracks por suas percepções de músicas relaxantes"
+author: "Daniel Gondim"
+output:
+  html_document: default
+  html_notebook: default
+  pdf_document: default
+---
+
+Neste notebook irei mostrar um experimento que realizei para identificar grupos de usuários da plataforma 8tracks(https://8tracks.com/) que compartilham mesmas percepções sobre músicas relaxantes.
+
+### Preparando os dados
+Adicionando .csv criado após recuperar as informações acústicas das músicas das playlists relaxantes dos usuários. Para usuários que possuíam mais de uma música listada, foi utilizada a médias das features dessas músicas para representar o usuário.
+```{r}
+data <- read.csv("/home/danielgondim/workspace-new/phd/experiments/qualificacao/users_relax.csv")
+head(data)
+```
+
+Fazendo uma simples manipulação no dataframe para dar nome à cada entrada (linha).
+```{r}
+temp <- data[,-1]
+rownames(temp) <- data[,1]
+data <- temp
+head(data)
+```
+
+Para realizar a análise devemos inicialmente normalizar os dados. Uma vez que nosso dataframe é composto apenas de atributos númericos, podemos normalizá-los de forma simples e direta, utilizando a função scale.
+```{r}
+data <- scale(data)
+summary(data)
+```
+
+### Determinando um número ótimo de grupos a serem criados
+Após normalizarmos os dados, foi possível partir para a atividade de agrupá-los. Para tal, foi escolhido o algoritmo K-means(https://en.wikipedia.org/wiki/K-means_clustering). Para utilizar este algoritmo, devemos previamente informar o valor dos K grupos que desejamos identificar nos nossos dados. Para identificar o valor ideal para o K existem algumas técnicas que podem ser aplicadas, dentre elas: *elbow method*, *silhouette method* e o *gap statistic*.
+
+Para a utilização dos métodos citados anteriormente para identificar um valor ideal de K, devemos carregar dois pacotes, quais sejam: factoextra e NbClust
+```{r}
+library(factoextra)
+library(NbClust)
+```
+
+#### *Elbow Method*
+O primeiro método utilizado foi o *elbow method*. No gráfico podemos perceber que o número 4 seria o valor ideal (porém com pouca diferença para o valor 3).
+```{r}
+fviz_nbclust(data, kmeans, method = "wss") +
+  geom_vline(xintercept = 4, linetype = 2)+
+  labs(subtitle = "Elbow method")
+```
+
+#### *Silhouette Method*
+Por este método o valor ideal para o K seria 2.
+```{r}
+fviz_nbclust(data, kmeans, method = "silhouette")+
+  labs(subtitle = "Silhouette method")
+```
+
+#### *Gap Statistic*
+Por fim, utilizando o método *gap statistic*, foi indicado um valor ideal de 4 para o número de grupos a serem gerados.
+```{r,echo=FALSE,warning=FALSE,message=FALSE,error=FALSE}
+set.seed(123)
+fviz_nbclust(data, kmeans, nstart = 25,  method = "gap_stat", nboot = 50)+
+  labs(subtitle = "Gap statistic method")
+```
+
+### Aplicando o agrupamento
+Após a aplicação de três diferentes métodos para indicar um valor ideal para K, escolhemos o valor 4 já que foi o valor indicado por dois destes métodos.
+
+Como já foi comentado, para o agrupamento iremos utilizar o algoritmo K-means, como podemos observar abaixo.
+```{r}
+clusters <- kmeans(data, 4)
+str(clusters)
+```
+
+Para o agrupamento K-means, utilizando a distância euclidiana entres os pontos como o fator para agregação, um dado importante que podemos analisar é o centróide de cada grupo gerado. Para isso podemos analisar a seguinte tabela, onde temos os valores dos centros de cada cluster para cada feature analisada.
+```{r}
+centroids <- clusters$centers
+head(centroids)
+```
+
+Para uma melhor análise da tabela acima, podemos gerar um gráfico de coordenadas paralelas. Neste gráfico o Cluter 1 está representado pela cor preta, o Cluster 2 pela cor vermelha, o Cluster 3 pela cor Verde e o Cluster 4 pela cor azul.
+```{r}
+library(MASS)
+parcoord(clusters$centers, var.label=TRUE, col = rownames(clusters$centers))
+```
+
+* Neste gráfico podemos perceber algumas coisas:
+    + As percepções de músicas relaxantes são bem distintas entre os grupos, principalmente entre os clusters 1 e 3.
+    + Os clusters 2 e 4 possuem uma variação semelhante de valores das features
+    + O cluster 3 define como relaxante basicamente músicas acústicas e instrumentais
+    + O cluster 1 define como relaxante músicas mais enérgicas e dançantes (o que pode gerar uma nova análise para identificar quais os gêneros dessas músicas)
+
+Outra análises podem ser feitas posteriormente...
